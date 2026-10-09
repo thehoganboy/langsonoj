@@ -37,17 +37,14 @@ export default async function HomePage() {
         <div className="absolute top-1/3 right-1/4 w-72 h-72 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center">
-          {/* Developer & Release Pill */}
+          {/* System Badge */}
           <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-slate-900/90 border border-slate-800 shadow-xl mb-6 backdrop-blur-md">
             <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse"></span>
             <span className="text-xs font-mono text-slate-300">
-              <strong className="text-white">LANG SON OJ</strong> • Phát triển bởi{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400 font-bold">
-                NgHuyHoang
-              </span>
+              <strong className="text-white">LANG SON OJ</strong> • Online Judge System
             </span>
             <span className="text-slate-600">|</span>
-            <span className="text-[11px] text-cyan-400 font-mono font-semibold">Piston API Engine (Public)</span>
+            <span className="text-[11px] text-cyan-400 font-mono font-semibold">Piston API Engine</span>
           </div>
 
           {/* Main Headline */}
@@ -123,7 +120,7 @@ export default async function HomePage() {
               Công Nghệ Hiện Đại Dành Cho Thí Sinh CP
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Được thiết kế tỉ mỉ bởi Dev NgHuyHoang nhằm mang lại trải nghiệm làm bài mượt mà nhất
+              Được thiết kế tỉ mỉ nhằm mang lại trải nghiệm làm bài mượt mà và tối ưu nhất
             </p>
           </div>
 

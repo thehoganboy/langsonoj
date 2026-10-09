@@ -47,17 +47,37 @@ export function parseProblemTxt(content: string): {
       return { success: false, error: 'File văn bản trống!' };
     }
 
-    const text = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // 1. Chuẩn hóa xuống dòng và gỡ bỏ triệt để các ký tự escape markdown (ví dụ: \--- thành ---, \[ thành [, \] thành ])
+    let text = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    text = text.replace(/\\([\[\]\-=~_*#`>|])/g, '$1');
 
-    // 1. Tách các section chính bắt đầu bằng '=== TÊN_SECTION ==='
-    const sectionRegex = /===\s*([A-Za-z0-9_]+)\s*===([\s\S]*?)(?=(?:===\s*[A-Za-z0-9_]+\s*===|$))/g;
+    // 2. Tách các section chính: === TÊN_SECTION ===
+    const KNOWN_SECTIONS = [
+      'TITLE', 'SLUG', 'DIFFICULTY', 'TIME_LIMIT', 'MEMORY_LIMIT',
+      'TAGS', 'DESCRIPTION', 'INPUT_FORMAT', 'OUTPUT_FORMAT', 'CONSTRAINTS', 'TESTCASES'
+    ];
+
+    const sectionHeaderRegex = /(?:^|\n)\s*(?:={3,}|---)\s*([A-Za-z0-9_]+)\s*(?:={3,}|---)/gi;
+    const sectionPositions: { key: string; index: number; headerLength: number }[] = [];
+    let sMatch: RegExpExecArray | null;
+
+    while ((sMatch = sectionHeaderRegex.exec(text)) !== null) {
+      const key = sMatch[1].trim().toUpperCase();
+      if (KNOWN_SECTIONS.includes(key)) {
+        sectionPositions.push({
+          key,
+          index: sMatch.index,
+          headerLength: sMatch[0].length,
+        });
+      }
+    }
+
     const sections: Record<string, string> = {};
-
-    let match: RegExpExecArray | null;
-    while ((match = sectionRegex.exec(text)) !== null) {
-      const key = match[1].trim().toUpperCase();
-      const val = match[2].trim();
-      sections[key] = val;
+    for (let i = 0; i < sectionPositions.length; i++) {
+      const current = sectionPositions[i];
+      const nextIndex = i + 1 < sectionPositions.length ? sectionPositions[i + 1].index : text.length;
+      const body = text.substring(current.index + current.headerLength, nextIndex).trim();
+      sections[current.key] = body;
     }
 
     const title = sections['TITLE'] || '';
@@ -81,33 +101,65 @@ export function parseProblemTxt(content: string): {
     const outputFormat = sections['OUTPUT_FORMAT'] || '';
     const constraints = sections['CONSTRAINTS'] || '';
 
-    // 2. Tách bộ testcases trong khối === TESTCASES ===
+    // 3. Tách bộ testcases trong khối === TESTCASES ===
     const testcases: ParsedTestcase[] = [];
     const testcasesBlock = sections['TESTCASES'] || '';
 
     if (testcasesBlock) {
-      // Tìm các khối test dạng: --- TEST 1 [SAMPLE] --- hoặc --- TEST 2 [HIDDEN] ---
-      const testRegex = /---\s*TEST\s*(?:\d*)\s*(?:\[(SAMPLE|HIDDEN)\])?\s*---([\s\S]*?)(?=(?:---\s*TEST|$))/gi;
+      // Hỗ trợ linh hoạt: --- TEST 1 [SAMPLE] ---, === TEST 2 [HIDDEN] ===, [TEST 1], v.v.
+      const testHeaderRegex = /(?:^|\n)\s*(?:---|={3,}|\[)\s*TEST(?:CASE)?\s*(\d*)\s*(?:[:\-–—]?\s*)?(?:\[(SAMPLE|HIDDEN|MẪU|ẨN|VÍ DỤ)\]|\((SAMPLE|HIDDEN|MẪU|ẨN|VÍ DỤ)\)|(SAMPLE|HIDDEN|MẪU|ẨN|VÍ DỤ))?\s*(?:---|={3,}|\])?/gi;
+
+      const testIndices: {
+        testNum: string;
+        index: number;
+        headerLength: number;
+        isSampleExplicit: boolean;
+        isHiddenExplicit: boolean;
+      }[] = [];
+
       let tMatch: RegExpExecArray | null;
+      while ((tMatch = testHeaderRegex.exec(testcasesBlock)) !== null) {
+        const typeRaw = (tMatch[2] || tMatch[3] || tMatch[4] || '').toUpperCase();
+        const isHidden = typeRaw.includes('HIDDEN') || typeRaw.includes('ẨN');
+        const isSample = typeRaw.includes('SAMPLE') || typeRaw.includes('MẪU') || typeRaw.includes('VÍ DỤ');
+        testIndices.push({
+          testNum: tMatch[1] || `${testIndices.length + 1}`,
+          index: tMatch.index,
+          headerLength: tMatch[0].length,
+          isSampleExplicit: isSample,
+          isHiddenExplicit: isHidden,
+        });
+      }
 
-      while ((tMatch = testRegex.exec(testcasesBlock)) !== null) {
-        const typeTag = (tMatch[1] || 'SAMPLE').toUpperCase();
-        const testBody = tMatch[2].trim();
+      for (let i = 0; i < testIndices.length; i++) {
+        const current = testIndices[i];
+        const nextIndex = i + 1 < testIndices.length ? testIndices[i + 1].index : testcasesBlock.length;
+        const testBody = testcasesBlock.substring(current.index + current.headerLength, nextIndex).trim();
 
-        // Tìm các thẻ [INPUT], [OUTPUT], [EXPLANATION]
-        const inputMatch = testBody.match(/\[INPUT\]\s*([\s\S]*?)(?=(?:\[OUTPUT\]|\[EXPLANATION\]|$))/i);
-        const outputMatch = testBody.match(/\[OUTPUT\]\s*([\s\S]*?)(?=(?:\[INPUT\]|\[EXPLANATION\]|$))/i);
-        const explMatch = testBody.match(/\[EXPLANATION\]\s*([\s\S]*?)(?=(?:\[INPUT\]|\[OUTPUT\]|$))/i);
+        // Quyết định isSample
+        let isSample = true;
+        if (current.isHiddenExplicit) {
+          isSample = false;
+        } else if (current.isSampleExplicit) {
+          isSample = true;
+        } else {
+          isSample = i < 2; // Mặc định 2 test đầu là sample nếu không ghi rõ
+        }
 
-        const input = inputMatch ? inputMatch[1].trim() : '';
-        const output = outputMatch ? outputMatch[1].trim() : '';
-        const explanation = explMatch ? explMatch[1].trim() : undefined;
+        // Tìm INPUT, OUTPUT, EXPLANATION (KHÔNG DÙNG cờ /m để không bắt nhầm $ xuống dòng của input nhiều dòng)
+        const inputMatch = testBody.match(/(?:\[INPUT\]|---INPUT---|=== INPUT ===|\bINPUT\b:?)\s*([\s\S]*?)(?=(?:\[OUTPUT\]|---OUTPUT---|=== OUTPUT ===|\bOUTPUT\b:?|\[EXPLANATION\]|---EXPLANATION---|=== EXPLANATION ===|\bEXPLANATION\b:?|GIẢI THÍCH:|$))/i);
+        const outputMatch = testBody.match(/(?:\[OUTPUT\]|---OUTPUT---|=== OUTPUT ===|\bOUTPUT\b:?)\s*([\s\S]*?)(?=(?:\[INPUT\]|---INPUT---|=== INPUT ===|\bINPUT\b:?|\[EXPLANATION\]|---EXPLANATION---|=== EXPLANATION ===|\bEXPLANATION\b:?|GIẢI THÍCH:|$))/i);
+        const explMatch = testBody.match(/(?:\[EXPLANATION\]|---EXPLANATION---|=== EXPLANATION ===|\bEXPLANATION\b:?|GIẢI THÍCH:)\s*([\s\S]*?)(?=(?:\[INPUT\]|---INPUT---|=== INPUT ===|\bINPUT\b:?|\[OUTPUT\]|---OUTPUT---|=== OUTPUT ===|\bOUTPUT\b:?|$))/i);
+
+        let input = inputMatch ? inputMatch[1].trim() : '';
+        let output = outputMatch ? outputMatch[1].trim() : '';
+        let explanation = explMatch ? explMatch[1].trim() : undefined;
 
         if (input !== '' || output !== '') {
           testcases.push({
             input,
             output,
-            isSample: typeTag === 'SAMPLE',
+            isSample,
             explanation,
           });
         }
@@ -225,7 +277,6 @@ Tổng của 3 và 5 là 8.
  */
 export const GUILD_TXT_CONTENT = `================================================================================
            HƯỚNG DẪN ĐIỀN FILE MẪU TẠO BÀI TẬP - LANG SON OJ
-                        Tác giả: Dev NgHuyHoang
 ================================================================================
 
 File mẫu sử dụng cú pháp các khối thẻ phân cách: === TÊN_KHỐI ===

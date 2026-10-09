@@ -56,12 +56,8 @@ export default function SubmissionsPage() {
               {submissions.length} lượt nộp
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1.5 flex items-center space-x-2">
-            <span>Theo dõi các lượt nộp bài, kết quả phán quyết và thống kê thời gian thực thi</span>
-            <span className="text-slate-600">•</span>
-            <span className="text-slate-400 text-xs font-mono">
-              Dev: <span className="text-cyan-400 font-semibold">NgHuyHoang</span>
-            </span>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1.5">
+            Theo dõi các lượt nộp bài, kết quả phán quyết và thống kê thời gian thực thi
           </p>
         </div>
 

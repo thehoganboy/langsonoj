@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Terminal, Code2, ListFilter, History, Shield, Cpu, User } from 'lucide-react';
+import { Terminal, Code2, ListFilter, History, Shield, Cpu, User, BookOpen } from 'lucide-react';
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -11,6 +11,7 @@ export default function Navbar() {
     { label: 'Bài tập', href: '/problems', icon: ListFilter },
     { label: 'Lịch sử nộp', href: '/submissions', icon: History },
     { label: 'Quản trị viên', href: '/admin', icon: Shield },
+    { label: 'HDSD (PDF)', href: '/HUONG_DAN_SU_DUNG_LANG_SON_OJ.pdf', icon: BookOpen, isExternal: true },
   ];
 
   return (
@@ -41,19 +42,25 @@ export default function Navbar() {
             </div>
           </Link>
 
-          {/* Dev Credit Tag in Navbar */}
-          <div className="hidden lg:flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full bg-slate-900/90 border border-slate-800 text-[11px] font-mono">
-            <span className="text-slate-500">Dev:</span>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-cyan-400 to-indigo-400 font-semibold">
-              NgHuyHoang
-            </span>
-          </div>
-
           {/* Nav links */}
           <nav className="hidden md:flex items-center space-x-1 pl-2">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+              if (item.isExternal) {
+                return (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-cyan-400 hover:bg-slate-800/60 transition-all"
+                  >
+                    <Icon className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>{item.label}</span>
+                  </a>
+                );
+              }
               return (
                 <Link
                   key={item.href}

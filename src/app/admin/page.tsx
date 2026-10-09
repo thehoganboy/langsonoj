@@ -179,9 +179,6 @@ export default function AdminPage() {
               <Shield className="w-6 h-6 text-amber-400" />
               <span>LANG SON OJ - Quản Trị Hệ Thống</span>
             </h1>
-            <span className="text-[11px] font-mono font-semibold text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-0.5 rounded-full">
-              Dev: NgHuyHoang
-            </span>
           </div>
           <p className="text-xs sm:text-sm text-slate-400 mt-1.5">
             Quản lý kho bài tập thuật toán, cấu hình bộ testcases (Sample & Hidden) và giám sát hệ thống Judge0
@@ -207,6 +204,17 @@ export default function AdminPage() {
           >
             <Download className="w-3.5 h-3.5" />
             <span>guild.txt</span>
+          </a>
+
+          <a
+            href="/HUONG_DAN_SU_DUNG_LANG_SON_OJ.pdf"
+            target="_blank"
+            download="HUONG_DAN_SU_DUNG_LANG_SON_OJ.pdf"
+            className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-lg bg-blue-900/40 hover:bg-blue-800/60 text-blue-300 border border-blue-700/60 text-xs font-medium transition-all"
+            title="Tải trọn bộ tài liệu Hướng dẫn sử dụng hệ thống (PDF)"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>HDSD (PDF)</span>
           </a>
 
           <Link

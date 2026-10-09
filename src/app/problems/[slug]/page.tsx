@@ -291,9 +291,6 @@ export default function ProblemDetailPage() {
         </div>
 
         <div className="flex items-center space-x-4 text-slate-400 text-[11px]">
-          <span className="hidden sm:inline font-mono text-[10px] text-slate-500">
-            Dev: <span className="text-cyan-400 font-semibold">NgHuyHoang</span>
-          </span>
           <div className="flex items-center space-x-1 font-mono">
             <Clock className="w-3.5 h-3.5 text-slate-500" />
             <span>{problem.timeLimit} ms</span>

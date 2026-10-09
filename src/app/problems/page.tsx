@@ -70,12 +70,8 @@ export default function ProblemsPage() {
               LANG SON OJ
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1.5 flex items-center space-x-2">
-            <span>Rèn luyện kỹ năng giải thuật và tư duy thi đấu Competitive Programming</span>
-            <span className="text-slate-600">•</span>
-            <span className="text-slate-400 text-xs font-mono">
-              Dev: <span className="text-cyan-400 font-semibold">NgHuyHoang</span>
-            </span>
+          <p className="text-xs sm:text-sm text-slate-400 mt-1.5">
+            Rèn luyện kỹ năng giải thuật và tư duy thi đấu Competitive Programming
           </p>
         </div>
 

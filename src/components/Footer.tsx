@@ -58,6 +58,14 @@ export default function Footer() {
               <Shield className="w-3 h-3" />
               <span>Quản Trị</span>
             </Link>
+            <a
+              href="/HUONG_DAN_SU_DUNG_LANG_SON_OJ.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-cyan-400 transition-colors"
+            >
+              HDSD (PDF)
+            </a>
           </div>
         </div>
 

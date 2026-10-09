@@ -4,10 +4,9 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 export const metadata: Metadata = {
-  title: 'LANG SON OJ - Hệ Thống Chấm Bài Trực Tuyến Hiện Đại (Dev: NgHuyHoang)',
-  description: 'Nền tảng thi đấu lập trình và giải thuật Competitive Programming thế hệ mới được phát triển bởi NgHuyHoang (LANG SON OJ)',
-  authors: [{ name: 'NgHuyHoang' }],
-  keywords: ['LANG SON OJ', 'Online Judge', 'Competitive Programming', 'NgHuyHoang', 'Judge0', 'Lập trình thi đấu'],
+  title: 'LANG SON OJ - Hệ Thống Chấm Bài Trực Tuyến Hiện Đại',
+  description: 'Nền tảng thi đấu lập trình và giải thuật Competitive Programming thế hệ mới (LANG SON OJ)',
+  keywords: ['LANG SON OJ', 'Online Judge', 'Competitive Programming', 'Lập trình thi đấu'],
 };
 
 export default function RootLayout({
