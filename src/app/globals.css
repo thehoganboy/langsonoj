@@ -109,3 +109,42 @@ code {
 .monaco-editor, .monaco-editor .overflow-guard {
   border-radius: 0.5rem;
 }
+
+/* Water morph animations for organic fluid water light */
+@keyframes waterMorph1 {
+  0%, 100% {
+    border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
+    transform: rotate(0deg) scale(1);
+  }
+  33% {
+    border-radius: 70% 30% 46% 54% / 30% 65% 35% 70%;
+    transform: rotate(120deg) scale(1.08, 0.95);
+  }
+  66% {
+    border-radius: 35% 65% 30% 70% / 60% 30% 70% 40%;
+    transform: rotate(240deg) scale(0.94, 1.05);
+  }
+}
+
+@keyframes waterMorph2 {
+  0%, 100% {
+    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+    transform: rotate(360deg) scale(1);
+  }
+  33% {
+    border-radius: 35% 65% 55% 45% / 45% 55% 45% 55%;
+    transform: rotate(240deg) scale(0.96, 1.06);
+  }
+  66% {
+    border-radius: 50% 50% 35% 65% / 55% 45% 60% 40%;
+    transform: rotate(120deg) scale(1.06, 0.96);
+  }
+}
+
+.animate-water-morph-1 {
+  animation: waterMorph1 10s ease-in-out infinite;
+}
+
+.animate-water-morph-2 {
+  animation: waterMorph2 14s ease-in-out infinite;
+}
