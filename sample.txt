@@ -1,0 +1,67 @@
+=== TITLE ===
+Tính Tổng Hai Số (A + B Problem)
+
+=== SLUG ===
+aplusb-example
+
+=== DIFFICULTY ===
+EASY
+
+=== TIME_LIMIT ===
+1000
+
+=== MEMORY_LIMIT ===
+262144
+
+=== TAGS ===
+Math, Basic, Input-Output
+
+=== DESCRIPTION ===
+Cho hai số nguyên $a$ và $b$. Hãy tính và in ra giá trị tổng $a + b$.
+
+Đây là bài toán kinh điển giúp làm quen với hệ thống thi đấu lập trình **LANG SON OJ**.
+Bạn có thể sử dụng các ngôn ngữ C++ (GCC), Python 3, hoặc Java để giải.
+
+=== INPUT_FORMAT ===
+Một dòng duy nhất chứa hai số nguyên $a$ và $b$ cách nhau bởi một khoảng trắng.
+
+=== OUTPUT_FORMAT ===
+In ra một số nguyên duy nhất là kết quả của phép cộng $a + b$.
+
+=== CONSTRAINTS ===
+$-10^9 \le a, b \le 10^9$
+
+=== TESTCASES ===
+--- TEST 1 [SAMPLE] ---
+[INPUT]
+3 5
+[OUTPUT]
+8
+[EXPLANATION]
+Tổng của 3 và 5 là 8.
+
+--- TEST 2 [SAMPLE] ---
+[INPUT]
+100 -20
+[OUTPUT]
+80
+[EXPLANATION]
+100 + (-20) = 80.
+
+--- TEST 3 [HIDDEN] ---
+[INPUT]
+0 0
+[OUTPUT]
+0
+
+--- TEST 4 [HIDDEN] ---
+[INPUT]
+-500000000 -500000000
+[OUTPUT]
+-1000000000
+
+--- TEST 5 [HIDDEN] ---
+[INPUT]
+1000000000 1000000000
+[OUTPUT]
+2000000000

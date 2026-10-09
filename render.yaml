@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: langson-oj
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PISTON_API_URL
+        value: https://emkc.org/api/v2/piston/execute
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_SECRET_KEY
+        sync: false

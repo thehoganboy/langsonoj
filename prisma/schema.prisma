@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Problem {
+  id           String       @id @default(cuid())
+  slug         String       @unique
+  title        String
+  difficulty   String       @default("EASY") // EASY, MEDIUM, HARD
+  timeLimit    Int          @default(1000)   // in ms
+  memoryLimit  Int          @default(262144) // in KB (256 MB)
+  description  String
+  inputFormat  String?
+  outputFormat String?
+  constraints  String?
+  tags         String?      // Comma-separated: "Array,Math,DP"
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  testcases    Testcase[]
+  submissions  Submission[]
+}
+
+model Testcase {
+  id          String   @id @default(cuid())
+  problemId   String
+  problem     Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  input       String
+  output      String
+  isSample    Boolean  @default(false)
+  explanation String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+}
+
+model Submission {
+  id            String   @id @default(cuid())
+  problemId     String
+  problem       Problem  @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  languageId    Int
+  language      String
+  code          String
+  status        String   @default("PENDING") // PENDING, ACCEPTED, WRONG_ANSWER, etc.
+  verdict       String   @default("In Queue") // AC, WA, TLE, MLE, CE, RTE
+  passedTests   Int      @default(0)
+  totalTests    Int      @default(0)
+  time          Float?   // in seconds
+  memory        Int?     // in KB
+  compileOutput String?
+  stderr        String?
+  testResults   String?  // JSON string of test case details
+  createdAt     DateTime @default(now())
+}
