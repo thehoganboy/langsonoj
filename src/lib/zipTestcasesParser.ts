@@ -9,22 +9,61 @@ export interface ParsedZipResult {
   error?: string;
 }
 
-/**
- * Tự nhiên sắp xếp chuỗi (ví dụ: test1, test2, ..., test10 thay vì test1, test10, test2)
- */
 function naturalSortCompare(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 }
 
 /**
- * Phân tích và trích xuất danh sách testcases từ File ZIP trực tiếp trên trình duyệt
+ * Phân tích và trích xuất danh sách testcases từ File ZIP hoặc RAR
+ * - Hỗ trợ cả file .zip và .rar
+ * - Nhận diện cấu trúc Themis (Test01/, Test02/...) và cấu trúc phẳng (1.in / 1.out...)
  */
-export async function parseTestcasesFromZip(zipFile: File | Blob): Promise<ParsedZipResult> {
+export async function parseTestcasesFromArchive(archiveFile: File | Blob): Promise<ParsedZipResult> {
+  const fileName = (archiveFile instanceof File ? archiveFile.name : '').toLowerCase();
+  const isRar = fileName.endsWith('.rar');
+
+  // Nếu là file RAR: Gửi qua API giải nén chuyên dụng phía server (sử dụng WebAssembly node-unrar-js)
+  if (isRar) {
+    try {
+      const formData = new FormData();
+      formData.append('file', archiveFile);
+
+      const res = await fetch('/api/admin/extract-archive', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        return {
+          success: false,
+          testcases: [],
+          totalDetected: 0,
+          error: data.error || 'Lỗi khi giải nén tệp RAR!',
+        };
+      }
+
+      return {
+        success: true,
+        testcases: data.testcases,
+        totalDetected: data.totalDetected,
+        detectedFormat: data.detectedFormat,
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        testcases: [],
+        totalDetected: 0,
+        error: `Không thể kết nối đến máy chủ giải nén RAR: ${err.message}`,
+      };
+    }
+  }
+
+  // Nếu là file ZIP: Giải nén siêu tốc trực tiếp trên trình duyệt bằng JSZip
   try {
     const zip = new JSZip();
-    const loadedZip = await zip.loadAsync(zipFile);
+    const loadedZip = await zip.loadAsync(archiveFile);
 
-    // Thu thập tất cả các file trong zip (bỏ qua thư mục và file hệ thống ẩn như __MACOSX)
     const fileEntries: { path: string; name: string; zipObject: JSZip.JSZipObject }[] = [];
 
     loadedZip.forEach((relativePath, zipObject) => {
@@ -52,24 +91,19 @@ export async function parseTestcasesFromZip(zipFile: File | Blob): Promise<Parse
       };
     }
 
-    // 1. THỬ CẤU TRÚC THEMIS: Mỗi testcase nằm trong 1 folder riêng (ví dụ: Test01/, Test02/, Test1/...)
+    // 1. Cấu trúc Themis (Mỗi test nằm trong folder riêng: Test01, Test02...)
     const folderMap: Record<string, typeof fileEntries> = {};
     for (const entry of fileEntries) {
       const parts = entry.path.split(/[/\\]/);
       if (parts.length >= 2) {
-        // Có folder cha
         const folderName = parts[parts.length - 2];
         if (!folderMap[folderName]) folderMap[folderName] = [];
         folderMap[folderName].push(entry);
       }
     }
 
-    const validFolders = Object.keys(folderMap).filter((f) => {
-      const files = folderMap[f];
-      return files.length >= 2;
-    });
+    const validFolders = Object.keys(folderMap).filter((f) => folderMap[f].length >= 2);
 
-    // Nếu có ít nhất 1 thư mục chứa cả input và output
     if (validFolders.length > 0) {
       validFolders.sort(naturalSortCompare);
       const testcases: ParsedTestcase[] = [];
@@ -100,7 +134,6 @@ export async function parseTestcasesFromZip(zipFile: File | Blob): Promise<Parse
           }
         }
 
-        // Nếu chưa tìm thấy theo đuôi, thử đoán: file 1 là in, file 2 là out
         if (!inFile && files.length >= 2) inFile = files[0].zipObject;
         if (!outFile && files.length >= 2) outFile = files[1].zipObject;
 
@@ -110,7 +143,7 @@ export async function parseTestcasesFromZip(zipFile: File | Blob): Promise<Parse
 
           const lowerFolder = folderName.toLowerCase();
           const isSampleExplicit = lowerFolder.includes('sample') || lowerFolder.includes('mau');
-          const isSample = isSampleExplicit || i < 2; // 2 test đầu mặc định là sample
+          const isSample = isSampleExplicit || i < 2;
 
           testcases.push({
             input: inputContent,
@@ -126,12 +159,12 @@ export async function parseTestcasesFromZip(zipFile: File | Blob): Promise<Parse
           success: true,
           testcases,
           totalDetected: testcases.length,
-          detectedFormat: 'Themis (Mỗi test một thư mục riêng: Test01, Test02...)',
+          detectedFormat: 'Themis (Mỗi test một thư mục riêng: Test01, Test02...) [ZIP]',
         };
       }
     }
 
-    // 2. THỬ CẤU TRÚC PHẲNG (Flat Files): Cặp file cùng tên theo số (1.in / 1.out, test1.inp / test1.out, ...)
+    // 2. Cấu trúc phẳng: Cặp tệp cùng tên theo số (1.in / 1.out, test1.inp / test1.out, ...)
     const pairsMap: Record<
       string,
       { in?: JSZip.JSZipObject; out?: JSZip.JSZipObject }
@@ -195,7 +228,24 @@ export async function parseTestcasesFromZip(zipFile: File | Blob): Promise<Parse
         success: true,
         testcases,
         totalDetected: testcases.length,
-        detectedFormat: 'Cặp tệp tương ứng (ví dụ: 1.in / 1.out, test1.inp / test1.out)',
+        detectedFormat: 'Cặp tệp tương ứng (ví dụ: 1.in / 1.out, test1.inp / test1.out) [ZIP]',
+      };
+    }
+
+    // Nếu JSZip client không nhận diện được, thử gọi API server fallback
+    const formData = new FormData();
+    formData.append('file', archiveFile);
+    const fallbackRes = await fetch('/api/admin/extract-archive', {
+      method: 'POST',
+      body: formData,
+    });
+    const fallbackData = await fallbackRes.json();
+    if (fallbackRes.ok && fallbackData.success) {
+      return {
+        success: true,
+        testcases: fallbackData.testcases,
+        totalDetected: fallbackData.totalDetected,
+        detectedFormat: fallbackData.detectedFormat,
       };
     }
 
@@ -204,14 +254,17 @@ export async function parseTestcasesFromZip(zipFile: File | Blob): Promise<Parse
       testcases: [],
       totalDetected: 0,
       error:
-        'Không thể nhận diện cặp file Input và Output trong file ZIP! Hãy đảm bảo tên file có đuôi .in/.out hoặc .inp/.out.',
+        'Không thể nhận diện cặp file Input và Output trong file ZIP/RAR! Hãy đảm bảo tên file có đuôi .in/.out hoặc .inp/.out.',
     };
   } catch (err: any) {
     return {
       success: false,
       testcases: [],
       totalDetected: 0,
-      error: `Lỗi khi giải nén file ZIP: ${err.message || 'File ZIP bị lỗi hoặc hỏng'}`,
+      error: `Lỗi khi giải nén: ${err.message || 'File nén bị lỗi'}`,
     };
   }
 }
+
+// Giữ lại alias để tương thích ngược
+export const parseTestcasesFromZip = parseTestcasesFromArchive;

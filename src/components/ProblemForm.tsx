@@ -33,6 +33,9 @@ import {
   Archive,
   FolderArchive,
   Loader2,
+  Image as ImageIcon,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 
 interface TestcaseItem {
@@ -41,6 +44,12 @@ interface TestcaseItem {
   output: string;
   isSample: boolean;
   explanation?: string;
+}
+
+interface StatementImageItem {
+  id: string;
+  url: string;
+  name: string;
 }
 
 interface ProblemFormProps {
@@ -78,6 +87,34 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
   const [inputFormat, setInputFormat] = useState(initialData?.inputFormat || '');
   const [outputFormat, setOutputFormat] = useState(initialData?.outputFormat || '');
   const [constraints, setConstraints] = useState(initialData?.constraints || '');
+
+  // Statement image mode & items (Tải ảnh chụp đề bài - xếp dọc xuống)
+  const [descriptionMode, setDescriptionMode] = useState<'text' | 'image'>(() => {
+    if (initialData?.description && /!\[.*?\]\((data:image|https?:|\/)/i.test(initialData.description)) {
+      return 'image';
+    }
+    return 'text';
+  });
+
+  const [statementImages, setStatementImages] = useState<StatementImageItem[]>(() => {
+    if (initialData?.description) {
+      const imgRegex = /!\[(.*?)\]\((.*?)\)/g;
+      const list: StatementImageItem[] = [];
+      let match;
+      let count = 1;
+      while ((match = imgRegex.exec(initialData.description)) !== null) {
+        list.push({
+          id: `img-${Date.now()}-${count}`,
+          url: match[2],
+          name: match[1] || `Trang ${count}`,
+        });
+        count++;
+      }
+      return list;
+    }
+    return [];
+  });
+  const [uploadingImages, setUploadingImages] = useState(false);
 
   // Markdown preview tab
   const [previewMarkdown, setPreviewMarkdown] = useState(false);
@@ -190,26 +227,148 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
 
       const result = await parseTestcasesFromZip(file);
       if (!result.success || result.testcases.length === 0) {
-        setZipError(result.error || 'Không tìm thấy testcase hợp lệ trong file ZIP!');
+        setZipError(result.error || 'Không tìm thấy testcase hợp lệ trong file nén (ZIP/RAR)!');
         return;
       }
 
       if (zipAppendMode) {
         setTestcases((prev) => [...prev, ...result.testcases]);
         setZipSuccessMsg(
-          `Đã nối thêm ${result.testcases.length} testcases từ file ZIP (${result.detectedFormat})!`
+          `Đã nối thêm ${result.testcases.length} testcases từ tệp nén (${result.detectedFormat})!`
         );
       } else {
         setTestcases(result.testcases);
         setZipSuccessMsg(
-          `Đã nạp thành công ${result.testcases.length} testcases từ file ZIP (${result.detectedFormat})!`
+          `Đã nạp thành công ${result.testcases.length} testcases từ tệp nén (${result.detectedFormat})!`
         );
       }
     } catch (err: any) {
-      setZipError(`Lỗi khi đọc file ZIP: ${err.message || 'Không thể giải nén'}`);
+      setZipError(`Lỗi khi đọc tệp ZIP/RAR: ${err.message || 'Không thể giải nén'}`);
     } finally {
       setZipLoading(false);
       e.target.value = '';
+    }
+  };
+
+  // Nén ảnh bằng Canvas để tải nhanh, tiết kiệm bộ nhớ và hiển thị sắc nét
+  const compressImageFile = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      if (!file.type.startsWith('image/')) {
+        reject(new Error('Tệp không đúng định dạng hình ảnh!'));
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Không thể đọc tệp ảnh'));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Không thể tải dữ liệu hình ảnh'));
+        img.onload = () => {
+          try {
+            const MAX_WIDTH = 1400;
+            const MAX_HEIGHT = 2000;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > MAX_WIDTH || height > MAX_HEIGHT) {
+              if (width / height > MAX_WIDTH / MAX_HEIGHT) {
+                height = Math.round((height * MAX_WIDTH) / width);
+                width = MAX_WIDTH;
+              } else {
+                width = Math.round((width * MAX_HEIGHT) / height);
+                height = MAX_HEIGHT;
+              }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              resolve(e.target?.result as string);
+              return;
+            }
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            resolve(dataUrl);
+          } catch {
+            resolve(e.target?.result as string);
+          }
+        };
+        img.src = e.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  // Tải một hoặc nhiều ảnh đề bài (HOÀN TOÀN KHÔNG ẢNH HƯỞNG ĐẾN TESTCASES)
+  const handleStatementImagesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      setUploadingImages(true);
+      const newItems: StatementImageItem[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const dataUrl = await compressImageFile(file);
+        newItems.push({
+          id: `img-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 7)}`,
+          url: dataUrl,
+          name: file.name.replace(/\.[^/.]+$/, '') || `Trang ${statementImages.length + i + 1}`,
+        });
+      }
+
+      const updated = [...statementImages, ...newItems];
+      setStatementImages(updated);
+
+      // Cập nhật nội dung đề bài (description) dạng Markdown ảnh xếp dọc xuống
+      const markdown = updated
+        .map((img, idx) => `![Trang ${idx + 1}: ${img.name}](${img.url})`)
+        .join('\n\n');
+      setDescription(markdown);
+      setDescriptionMode('image');
+    } catch (err: any) {
+      alert(`Lỗi khi xử lý ảnh: ${err.message || 'Không thể tải ảnh'}`);
+    } finally {
+      setUploadingImages(false);
+      e.target.value = '';
+    }
+  };
+
+  // Đổi thứ tự ảnh lên hoặc xuống (xếp dọc)
+  const moveStatementImage = (index: number, direction: 'up' | 'down') => {
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= statementImages.length) return;
+
+    const updated = [...statementImages];
+    const temp = updated[index];
+    updated[index] = updated[targetIdx];
+    updated[targetIdx] = temp;
+
+    setStatementImages(updated);
+    const markdown = updated
+      .map((img, idx) => `![Trang ${idx + 1}: ${img.name}](${img.url})`)
+      .join('\n\n');
+    setDescription(markdown);
+  };
+
+  // Xóa ảnh khỏi đề bài
+  const removeStatementImage = (index: number) => {
+    const updated = statementImages.filter((_, i) => i !== index);
+    setStatementImages(updated);
+    if (updated.length > 0) {
+      const markdown = updated
+        .map((img, idx) => `![Trang ${idx + 1}: ${img.name}](${img.url})`)
+        .join('\n\n');
+      setDescription(markdown);
+    } else {
+      setDescription('');
     }
   };
 
@@ -484,7 +643,7 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
                 Chọn file bài tập (.txt) từ máy tính
               </h4>
               <p className="text-[11px] text-slate-400 max-w-xs mb-3">
-                Hỗ trợ file đề <code className="text-cyan-300">.txt</code> (thẻ <code className="text-cyan-300">=== SECTION ===</code>) hoặc nén bộ test <code className="text-indigo-300">.zip</code>
+                Hỗ trợ file đề <code className="text-cyan-300">.txt</code> hoặc nén bộ test <code className="text-indigo-300">.zip / .rar</code>
               </p>
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <label className="px-3.5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold cursor-pointer shadow-lg shadow-cyan-600/20 transition-all flex items-center space-x-1.5">
@@ -500,13 +659,26 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
 
                 <label className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer shadow-lg shadow-indigo-600/20 transition-all flex items-center space-x-1.5">
                   <Archive className="w-3.5 h-3.5" />
-                  <span>Nạp bộ test .zip</span>
+                  <span>Nạp test .zip/.rar</span>
                   <input
                     type="file"
-                    accept=".zip"
+                    accept=".zip,.rar"
                     disabled={zipLoading}
                     className="hidden"
                     onChange={handleZipUpload}
+                  />
+                </label>
+
+                <label className="px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold cursor-pointer shadow-lg shadow-emerald-600/20 transition-all flex items-center space-x-1.5">
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>Tải ảnh đề bài</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    disabled={uploadingImages}
+                    className="hidden"
+                    onChange={handleStatementImagesUpload}
                   />
                 </label>
               </div>
@@ -723,68 +895,241 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
             </div>
           </div>
 
-          {/* Section 2: Đề bài & Markdown Editor với Live Preview */}
-          <div className="bg-[#0f141d] border border-slate-800 rounded-xl p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-              <h3 className="text-sm font-bold text-white">
-                2. Đề bài & Quy cách I/O (Hỗ trợ Markdown + LaTeX KaTeX)
-              </h3>
-              <div className="flex items-center space-x-1 bg-slate-900 border border-slate-800 p-0.5 rounded-lg text-xs">
+          {/* Section 2: Đề bài & Quy cách I/O (Hỗ trợ Markdown + KaTeX hoặc Tải ảnh đề thi xếp dọc) */}
+          <div className="bg-[#0f141d] border border-slate-800 rounded-xl p-5 space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center space-x-2">
+                  <span>2. Nội dung Đề bài</span>
+                  {statementImages.length > 0 && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">
+                      {statementImages.length} ảnh đề bài
+                    </span>
+                  )}
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Bạn có thể soạn thảo văn bản (Markdown/KaTeX) hoặc tải trực tiếp ảnh chụp đề thi.
+                </p>
+              </div>
+
+              {/* Mode switch tabs: Soạn văn bản vs Tải ảnh chụp đề bài */}
+              <div className="flex items-center space-x-1.5 bg-slate-900/90 border border-slate-800 p-1 rounded-xl text-xs">
                 <button
                   type="button"
-                  onClick={() => setPreviewMarkdown(false)}
-                  className={`px-3 py-1 rounded transition-colors ${
-                    !previewMarkdown
-                      ? 'bg-blue-600 text-white font-medium'
+                  onClick={() => setDescriptionMode('text')}
+                  className={`px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all ${
+                    descriptionMode === 'text'
+                      ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/30'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  Soạn thảo
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Soạn văn bản</span>
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setPreviewMarkdown(true)}
-                  className={`px-3 py-1 rounded flex items-center space-x-1 transition-colors ${
-                    previewMarkdown
-                      ? 'bg-blue-600 text-white font-medium'
+                  onClick={() => setDescriptionMode('image')}
+                  className={`px-3 py-1.5 rounded-lg flex items-center space-x-1.5 transition-all ${
+                    descriptionMode === 'image'
+                      ? 'bg-cyan-600 text-white font-semibold shadow-md shadow-cyan-600/30'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <Eye className="w-3.5 h-3.5" />
-                  <span>Xem trước KaTeX</span>
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>Tải ảnh đề bài {statementImages.length > 0 ? `(${statementImages.length})` : ''}</span>
                 </button>
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">
-                Nội dung đề bài chi tiết (Markdown) <span className="text-rose-400">*</span>
-              </label>
-              {previewMarkdown ? (
-                <div className="bg-[#121824] border border-slate-700 rounded-lg p-4 min-h-[220px]">
-                  <MarkdownRenderer content={description || '*Chưa có nội dung đề bài*'} />
+            {/* Chế độ: TẢI ẢNH ĐỀ BÀI (XẾP DỌC XUỐNG) */}
+            {descriptionMode === 'image' && (
+              <div className="space-y-4">
+                {/* Reassurance banner: KHÔNG THAY THẾ TEST */}
+                <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-500/30 text-cyan-300 text-xs flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <span>
+                      <strong>Lưu ý:</strong> Tải ảnh chỉ áp dụng cho phần hiển thị đề bài. <strong>Toàn bộ các bộ testcases chấm điểm bên dưới được giữ nguyên độc lập</strong>.
+                    </span>
+                  </div>
                 </div>
-              ) : (
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={8}
-                  placeholder="Nhập mô tả đề bài... Bạn có thể dùng $a + b$ hoặc $$F_n = F_{n-1} + F_{n-2}$$ để gõ công thức toán học KaTeX."
-                  required
-                  className="w-full bg-[#151c27] border border-slate-700 rounded-lg p-3 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-blue-500"
-                />
-              )}
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Vùng chọn tải ảnh */}
+                <div className="border-2 border-dashed border-cyan-500/40 hover:border-cyan-400/80 rounded-2xl p-6 text-center bg-[#111723]/60 transition-colors">
+                  <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mx-auto mb-3 shadow-inner">
+                    {uploadingImages ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <ImageIcon className="w-6 h-6" />
+                    )}
+                  </div>
+                  <h4 className="text-sm font-bold text-white mb-1">
+                    Tải lên một hoặc nhiều ảnh chụp đề bài
+                  </h4>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
+                    Hỗ trợ chọn nhiều trang cùng lúc (.jpg, .png, .webp). Hệ thống tự động nén tối ưu và xếp dọc xuống theo thứ tự từng trang.
+                  </p>
+
+                  <label className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-semibold cursor-pointer shadow-lg shadow-cyan-600/25 active:scale-95 transition-all">
+                    <Upload className="w-4 h-4" />
+                    <span>{uploadingImages ? 'Đang nén & nạp ảnh...' : 'Chọn ảnh từ máy tính (Có thể chọn nhiều ảnh)'}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      disabled={uploadingImages}
+                      className="hidden"
+                      onChange={handleStatementImagesUpload}
+                    />
+                  </label>
+                </div>
+
+                {/* Danh sách ảnh đề bài hiển thị xếp dọc xuống */}
+                {statementImages.length > 0 && (
+                  <div className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between text-xs text-slate-300 font-semibold border-b border-slate-800 pb-2">
+                      <span>Các trang đề bài ({statementImages.length} ảnh xếp dọc từ trên xuống):</span>
+                      <label className="text-cyan-400 hover:underline cursor-pointer flex items-center space-x-1 font-normal">
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Thêm ảnh khác</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          disabled={uploadingImages}
+                          className="hidden"
+                          onChange={handleStatementImagesUpload}
+                        />
+                      </label>
+                    </div>
+
+                    <div className="space-y-5">
+                      {statementImages.map((img, index) => (
+                        <div
+                          key={img.id}
+                          className="bg-[#121926] border border-slate-700/80 rounded-xl overflow-hidden shadow-lg"
+                        >
+                          {/* Image control bar */}
+                          <div className="bg-[#0e131d] px-4 py-2.5 flex items-center justify-between border-b border-slate-800 text-xs">
+                            <div className="flex items-center space-x-2">
+                              <span className="w-6 h-6 rounded-md bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 flex items-center justify-center font-bold font-mono text-[11px]">
+                                {index + 1}
+                              </span>
+                              <span className="text-white font-medium truncate max-w-xs sm:max-w-md">
+                                Trang {index + 1}: {img.name}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center space-x-1.5">
+                              <button
+                                type="button"
+                                disabled={index === 0}
+                                onClick={() => moveStatementImage(index, 'up')}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:hover:bg-slate-800 transition-colors"
+                                title="Di chuyển lên trên"
+                              >
+                                <ChevronUp className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                type="button"
+                                disabled={index === statementImages.length - 1}
+                                onClick={() => moveStatementImage(index, 'down')}
+                                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 disabled:opacity-30 disabled:hover:bg-slate-800 transition-colors"
+                                title="Di chuyển xuống dưới"
+                              >
+                                <ChevronDown className="w-4 h-4" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => removeStatementImage(index)}
+                                className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white transition-colors ml-1"
+                                title="Xóa trang ảnh này"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Image Preview */}
+                          <div className="p-4 bg-[#0a0d14]/70 flex justify-center">
+                            <img
+                              src={img.url}
+                              alt={img.name}
+                              className="max-h-[600px] w-auto max-w-full object-contain rounded-lg border border-slate-800 shadow-md"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Chế độ: SOẠN THẢO VĂN BẢN (MARKDOWN / KATEX) */}
+            {descriptionMode === 'text' && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-medium text-slate-300">
+                    Nội dung đề bài chi tiết (Markdown) <span className="text-rose-400">*</span>
+                  </label>
+                  <div className="flex items-center space-x-1 bg-slate-900 border border-slate-800 p-0.5 rounded-lg text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewMarkdown(false)}
+                      className={`px-3 py-1 rounded transition-colors ${
+                        !previewMarkdown
+                          ? 'bg-blue-600 text-white font-medium'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Soạn thảo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPreviewMarkdown(true)}
+                      className={`px-3 py-1 rounded flex items-center space-x-1 transition-colors ${
+                        previewMarkdown
+                          ? 'bg-blue-600 text-white font-medium'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Xem trước KaTeX</span>
+                    </button>
+                  </div>
+                </div>
+
+                {previewMarkdown ? (
+                  <div className="bg-[#121824] border border-slate-700 rounded-lg p-4 min-h-[220px]">
+                    <MarkdownRenderer content={description || '*Chưa có nội dung đề bài*'} />
+                  </div>
+                ) : (
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={8}
+                    placeholder="Nhập mô tả đề bài... Bạn có thể dùng $a + b$ hoặc $$F_n = F_{n-1} + F_{n-2}$$ để gõ công thức toán học KaTeX."
+                    required
+                    className="w-full bg-[#151c27] border border-slate-700 rounded-lg p-3 text-xs text-white placeholder-slate-500 font-mono focus:outline-none focus:border-blue-500"
+                  />
+                )}
+              </div>
+            )}
+
+            {/* Các trường phụ trợ (Format I/O & Ràng buộc) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Định dạng Input (Input Format)
+                  Định dạng Input (Input Format - Tùy chọn)
                 </label>
                 <textarea
                   value={inputFormat}
                   onChange={(e) => setInputFormat(e.target.value)}
-                  rows={3}
+                  rows={2}
                   placeholder="VD: Dòng đầu chứa số nguyên n..."
                   className="w-full bg-[#151c27] border border-slate-700 rounded-lg p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                 />
@@ -792,12 +1137,12 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
 
               <div>
                 <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Định dạng Output (Output Format)
+                  Định dạng Output (Output Format - Tùy chọn)
                 </label>
                 <textarea
                   value={outputFormat}
                   onChange={(e) => setOutputFormat(e.target.value)}
-                  rows={3}
+                  rows={2}
                   placeholder="VD: In ra một số nguyên duy nhất là kết quả..."
                   className="w-full bg-[#151c27] border border-slate-700 rounded-lg p-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
                 />
@@ -806,7 +1151,7 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
 
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">
-                Ràng buộc dữ liệu (Constraints)
+                Ràng buộc dữ liệu (Constraints - Tùy chọn)
               </label>
               <input
                 type="text"
@@ -858,9 +1203,9 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-white flex items-center space-x-2">
-                    <span>Nhập bộ Testcases từ File ZIP (.zip)</span>
+                    <span>Nhập bộ Testcases từ File Nén (.zip, .rar)</span>
                     <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-normal">
-                      Khuyên dùng cho đề thi HSG
+                      Khuyên dùng cho đề thi HSG (.zip, .rar)
                     </span>
                   </h4>
                   <p className="text-[11px] text-slate-400 mt-0.5">
@@ -886,10 +1231,10 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
                   ) : (
                     <Upload className="w-3.5 h-3.5" />
                   )}
-                  <span>{zipLoading ? 'Đang giải nén...' : 'Chọn file .zip'}</span>
+                  <span>{zipLoading ? 'Đang giải nén...' : 'Chọn file .zip / .rar'}</span>
                   <input
                     type="file"
-                    accept=".zip"
+                    accept=".zip,.rar"
                     disabled={zipLoading}
                     className="hidden"
                     onChange={handleZipUpload}

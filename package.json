@@ -40,6 +40,7 @@
     "lucide-react": "^0.453.0",
     "monaco-editor": "^0.57.0",
     "next": "^14.2.15",
+    "node-unrar-js": "^2.0.2",
     "postcss": "^8.4.47",
     "prisma": "^5.21.1",
     "react": "^18.3.1",
