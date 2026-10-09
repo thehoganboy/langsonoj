@@ -11,6 +11,24 @@ interface MarkdownRendererProps {
 }
 
 export default function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
+  // Tự động làm sạch các ký tự escape markdown (ví dụ \$N$ -> $N$) để KaTeX không nuốt text
+  const sanitizedContent = React.useMemo(() => {
+    if (!content) return '';
+    return content
+      .replaceAll('\\$', '$')
+      .replaceAll('\\*', '*')
+      .replaceAll('\\-', '-')
+      .replaceAll('\\[', '[')
+      .replaceAll('\\]', ']')
+      .replaceAll('\\=', '=')
+      .replaceAll('\\_', '_')
+      .replaceAll('\\`', '`')
+      .replaceAll('\\#', '#')
+      .replaceAll('\\\\le', '\\le')
+      .replaceAll('\\\\ge', '\\ge')
+      .replaceAll('\\\\ne', '\\ne');
+  }, [content]);
+
   return (
     <div className={`prose prose-invert max-w-none text-slate-300 ${className}`}>
       <ReactMarkdown
@@ -51,7 +69,7 @@ export default function MarkdownRenderer({ content, className = '' }: MarkdownRe
           td: ({ node, ...props }) => <td className="p-2 border-b border-slate-800/50 text-slate-300" {...props} />,
         }}
       >
-        {content}
+        {sanitizedContent}
       </ReactMarkdown>
     </div>
   );

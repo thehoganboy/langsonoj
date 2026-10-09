@@ -351,7 +351,7 @@ export default function ProblemDetailPage() {
                       Định dạng Đầu vào (Input Format)
                     </h3>
                     <div className="bg-[#121824] p-3 rounded-lg border border-slate-800 text-xs text-slate-300 leading-relaxed">
-                      {problem.inputFormat}
+                      <MarkdownRenderer content={problem.inputFormat} />
                     </div>
                   </div>
                 )}
@@ -363,7 +363,7 @@ export default function ProblemDetailPage() {
                       Định dạng Đầu ra (Output Format)
                     </h3>
                     <div className="bg-[#121824] p-3 rounded-lg border border-slate-800 text-xs text-slate-300 leading-relaxed">
-                      {problem.outputFormat}
+                      <MarkdownRenderer content={problem.outputFormat} />
                     </div>
                   </div>
                 )}

@@ -47,9 +47,21 @@ export function parseProblemTxt(content: string): {
       return { success: false, error: 'File văn bản trống!' };
     }
 
-    // 1. Chuẩn hóa xuống dòng và gỡ bỏ triệt để các ký tự escape markdown (ví dụ: \--- thành ---, \[ thành [, \] thành ])
+    // 1. Chuẩn hóa xuống dòng và gỡ bỏ triệt để các ký tự escape markdown (ví dụ: \$ -> $, \--- -> ---, \[ -> [, \] -> ])
     let text = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    text = text.replace(/\\([\[\]\-=~_*#`>|])/g, '$1');
+    text = text
+      .replaceAll('\\$', '$')
+      .replaceAll('\\*', '*')
+      .replaceAll('\\-', '-')
+      .replaceAll('\\[', '[')
+      .replaceAll('\\]', ']')
+      .replaceAll('\\=', '=')
+      .replaceAll('\\_', '_')
+      .replaceAll('\\`', '`')
+      .replaceAll('\\#', '#')
+      .replaceAll('\\\\le', '\\le')
+      .replaceAll('\\\\ge', '\\ge')
+      .replaceAll('\\\\ne', '\\ne');
 
     // 2. Tách các section chính: === TÊN_SECTION ===
     const KNOWN_SECTIONS = [

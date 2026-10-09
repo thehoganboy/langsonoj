@@ -9,6 +9,7 @@ import {
   SAMPLE_TXT_CONTENT,
   GUILD_TXT_CONTENT,
 } from '@/lib/problemParser';
+import { parseTestcasesFromZip } from '@/lib/zipTestcasesParser';
 import {
   Save,
   Plus,
@@ -29,6 +30,9 @@ import {
   X,
   FileCode,
   BookOpen,
+  Archive,
+  FolderArchive,
+  Loader2,
 } from 'lucide-react';
 
 interface TestcaseItem {
@@ -101,6 +105,12 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ZIP testcases import states
+  const [zipLoading, setZipLoading] = useState(false);
+  const [zipSuccessMsg, setZipSuccessMsg] = useState<string | null>(null);
+  const [zipError, setZipError] = useState<string | null>(null);
+  const [zipAppendMode, setZipAppendMode] = useState(false);
+
   // Add testcase
   const addTestcase = (isSample = false) => {
     setTestcases((prev) => [
@@ -166,6 +176,41 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
     };
     reader.readAsText(file, 'utf-8');
     e.target.value = '';
+  };
+
+  // Handle bulk ZIP testcases upload
+  const handleZipUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setZipLoading(true);
+      setZipError(null);
+      setZipSuccessMsg(null);
+
+      const result = await parseTestcasesFromZip(file);
+      if (!result.success || result.testcases.length === 0) {
+        setZipError(result.error || 'Không tìm thấy testcase hợp lệ trong file ZIP!');
+        return;
+      }
+
+      if (zipAppendMode) {
+        setTestcases((prev) => [...prev, ...result.testcases]);
+        setZipSuccessMsg(
+          `Đã nối thêm ${result.testcases.length} testcases từ file ZIP (${result.detectedFormat})!`
+        );
+      } else {
+        setTestcases(result.testcases);
+        setZipSuccessMsg(
+          `Đã nạp thành công ${result.testcases.length} testcases từ file ZIP (${result.detectedFormat})!`
+        );
+      }
+    } catch (err: any) {
+      setZipError(`Lỗi khi đọc file ZIP: ${err.message || 'Không thể giải nén'}`);
+    } finally {
+      setZipLoading(false);
+      e.target.value = '';
+    }
   };
 
   // Process and parse text content from sample.txt
@@ -438,19 +483,33 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
               <h4 className="text-xs font-bold text-white mb-1">
                 Chọn file bài tập (.txt) từ máy tính
               </h4>
-              <p className="text-[11px] text-slate-400 max-w-xs mb-4">
-                Hỗ trợ file định dạng văn bản UTF-8 theo chuẩn các thẻ <code className="text-cyan-300">=== SECTION ===</code>
+              <p className="text-[11px] text-slate-400 max-w-xs mb-3">
+                Hỗ trợ file đề <code className="text-cyan-300">.txt</code> (thẻ <code className="text-cyan-300">=== SECTION ===</code>) hoặc nén bộ test <code className="text-indigo-300">.zip</code>
               </p>
-              <label className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold cursor-pointer shadow-lg shadow-cyan-600/20 transition-all flex items-center space-x-2">
-                <Upload className="w-3.5 h-3.5" />
-                <span>Chọn file .txt từ máy</span>
-                <input
-                  type="file"
-                  accept=".txt"
-                  className="hidden"
-                  onChange={handleTxtFileUpload}
-                />
-              </label>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <label className="px-3.5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold cursor-pointer shadow-lg shadow-cyan-600/20 transition-all flex items-center space-x-1.5">
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Nạp file đề .txt</span>
+                  <input
+                    type="file"
+                    accept=".txt"
+                    className="hidden"
+                    onChange={handleTxtFileUpload}
+                  />
+                </label>
+
+                <label className="px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold cursor-pointer shadow-lg shadow-indigo-600/20 transition-all flex items-center space-x-1.5">
+                  <Archive className="w-3.5 h-3.5" />
+                  <span>Nạp bộ test .zip</span>
+                  <input
+                    type="file"
+                    accept=".zip"
+                    disabled={zipLoading}
+                    className="hidden"
+                    onChange={handleZipUpload}
+                  />
+                </label>
+              </div>
             </div>
 
             {/* Cột 2: Dán nội dung trực tiếp */}
@@ -790,6 +849,87 @@ export default function ProblemForm({ initialData, isEdit = false }: ProblemForm
                 </button>
               </div>
             </div>
+
+            {/* Hộp nạp Testcases nhanh từ File ZIP */}
+            <div className="bg-[#121926]/80 border border-dashed border-cyan-500/40 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-start space-x-3">
+                <div className="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0 mt-0.5 shadow-sm">
+                  <Archive className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-white flex items-center space-x-2">
+                    <span>Nhập bộ Testcases từ File ZIP (.zip)</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-normal">
+                      Khuyên dùng cho đề thi HSG
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Hỗ trợ chuẩn Themis (thư mục <code>Test01/</code>, <code>Test02/</code>) hoặc cặp file cùng tên (<code>1.in / 1.out</code>, <code>test1.inp / test1.out</code>).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+                <label className="flex items-center space-x-1.5 text-[11px] text-slate-400 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={zipAppendMode}
+                    onChange={(e) => setZipAppendMode(e.target.checked)}
+                    className="rounded border-slate-700 text-cyan-500 focus:ring-0 bg-slate-800"
+                  />
+                  <span>Nối thêm vào danh sách</span>
+                </label>
+
+                <label className="px-3.5 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold cursor-pointer shadow-md shadow-cyan-600/20 transition-all flex items-center space-x-1.5 shrink-0">
+                  {zipLoading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5" />
+                  )}
+                  <span>{zipLoading ? 'Đang giải nén...' : 'Chọn file .zip'}</span>
+                  <input
+                    type="file"
+                    accept=".zip"
+                    disabled={zipLoading}
+                    className="hidden"
+                    onChange={handleZipUpload}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Thông báo kết quả nạp ZIP */}
+            {zipSuccessMsg && (
+              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>{zipSuccessMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setZipSuccessMsg(null)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {zipError && (
+              <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{zipError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setZipError(null)}
+                  className="text-slate-400 hover:text-white"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
 
             {/* List of testcases */}
             <div className="space-y-4">
