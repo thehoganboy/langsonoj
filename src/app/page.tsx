@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { DIFFICULTY_STYLES } from '@/lib/constants';
 import { Difficulty } from '@/types';
 import { Terminal, Shield, ArrowRight, Zap, Award, Sparkles, Code2, Cpu, CheckCircle2 } from 'lucide-react';
+import MouseTrackerBackground from '@/components/MouseTrackerBackground';
 
 export const revalidate = 0;
 
@@ -32,6 +33,9 @@ export default async function HomePage() {
     <div className="flex-1 flex flex-col relative overflow-hidden">
       {/* Hero Section */}
       <section className="relative overflow-hidden pt-14 pb-20 md:pt-24 md:pb-28 border-b border-slate-800/80 bg-radial-glow">
+        {/* Hiệu ứng loang nước & bọt khí chỉ ở đầu trang chủ */}
+        <MouseTrackerBackground />
+
         {/* Glow decorative orbs */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[350px] bg-gradient-to-tr from-blue-600/15 via-indigo-600/10 to-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute top-1/3 right-1/4 w-72 h-72 bg-purple-600/10 rounded-full blur-3xl pointer-events-none"></div>

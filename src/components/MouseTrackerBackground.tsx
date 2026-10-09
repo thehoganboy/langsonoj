@@ -27,27 +27,30 @@ interface WaterRipple {
 }
 
 export default function MouseTrackerBackground() {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fluidGlowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const container = containerRef.current;
     const canvas = canvasRef.current;
     const fluidGlow = fluidGlowRef.current;
-    if (!canvas) return;
+    if (!container || !canvas) return;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
+    let width = (canvas.width = container.clientWidth || window.innerWidth);
+    let height = (canvas.height = container.clientHeight || 600);
 
     const handleResize = () => {
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
+      if (!container || !canvas) return;
+      width = canvas.width = container.clientWidth;
+      height = canvas.height = container.clientHeight;
     };
     window.addEventListener('resize', handleResize);
 
-    // Smooth coordinates
+    // Smooth coordinates relative to container
     let targetX = width / 2;
     let targetY = height / 3;
     let currentX = targetX;
@@ -59,31 +62,31 @@ export default function MouseTrackerBackground() {
     const bubbles: Bubble[] = [];
     const ripples: WaterRipple[] = [];
 
-    const onMove = (clientX: number, clientY: number) => {
+    const onMove = (relX: number, relY: number) => {
       if (!isVisible) {
         isVisible = true;
         if (fluidGlow) fluidGlow.style.opacity = '1';
       }
 
-      targetX = clientX;
-      targetY = clientY;
+      targetX = relX;
+      targetY = relY;
 
       // Distance moved since last ripple
-      const dx = clientX - lastX;
-      const dy = clientY - lastY;
+      const dx = relX - lastX;
+      const dy = relY - lastY;
       const dist = Math.sqrt(dx * dx + dy * dy);
 
       // Gợn sóng loang nước khi di chuyển chuột (Water Ripples)
-      if (dist > 18) {
-        lastX = clientX;
-        lastY = clientY;
+      if (dist > 16) {
+        lastX = relX;
+        lastY = relY;
 
         if (ripples.length < 15) {
           ripples.push({
-            x: clientX,
-            y: clientY,
+            x: relX,
+            y: relY,
             radius: 8,
-            maxRadius: Math.min(160, 60 + dist * 1.5),
+            maxRadius: Math.min(150, 50 + dist * 1.4),
             opacity: 0.55,
             expansionSpeed: 2.2 + Math.random() * 0.8,
             hue: 185 + Math.random() * 30, // Cyan-aqua
@@ -96,9 +99,9 @@ export default function MouseTrackerBackground() {
       for (let i = 0; i < bubbleCount; i++) {
         if (bubbles.length < 45) {
           bubbles.push({
-            x: clientX + (Math.random() - 0.5) * 16,
-            y: clientY + (Math.random() - 0.5) * 16,
-            radius: Math.random() * 3.8 + 1.8,
+            x: relX + (Math.random() - 0.5) * 16,
+            y: relY + (Math.random() - 0.5) * 16,
+            radius: Math.random() * 3.6 + 1.8,
             vx: (Math.random() - 0.5) * 1.2,
             vy: -(Math.random() * 1.4 + 0.6), // Nổi lên trên như bọt nước
             wobbleSpeed: Math.random() * 0.08 + 0.05,
@@ -112,22 +115,37 @@ export default function MouseTrackerBackground() {
       }
     };
 
-    const handlePointerMove = (e: PointerEvent) => {
-      if (e.pointerType === 'touch') return;
-      onMove(e.clientX, e.clientY);
+    const onLeave = () => {
+      isVisible = false;
+      if (fluidGlow) fluidGlow.style.opacity = '0';
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
-      onMove(e.clientX, e.clientY);
+    const handlePointerMove = (e: PointerEvent | MouseEvent) => {
+      if ('pointerType' in e && e.pointerType === 'touch') return;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+
+      // Chỉ kích hoạt khi chuột nằm trong phạm vi đầu trang chủ (Hero section)
+      if (
+        e.clientX >= rect.left &&
+        e.clientX <= rect.right &&
+        e.clientY >= rect.top &&
+        e.clientY <= rect.bottom
+      ) {
+        const relX = e.clientX - rect.left;
+        const relY = e.clientY - rect.top;
+        onMove(relX, relY);
+      } else {
+        onLeave();
+      }
     };
 
     const handlePointerLeave = () => {
-      isVisible = false;
-      if (fluidGlow) fluidGlow.style.opacity = '0.35';
+      onLeave();
     };
 
     window.addEventListener('pointermove', handlePointerMove, { passive: true });
-    window.addEventListener('mousemove', handleMouseMove, { passive: true });
+    window.addEventListener('mousemove', handlePointerMove, { passive: true });
     document.addEventListener('pointerleave', handlePointerLeave);
     document.addEventListener('mouseleave', handlePointerLeave);
 
@@ -184,7 +202,6 @@ export default function MouseTrackerBackground() {
         }
 
         ctx.save();
-        // Vòng ngoài bọt nước trong suốt
         ctx.beginPath();
         ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
         ctx.strokeStyle = `hsla(${b.hue}, 95%, 75%, ${opacity * 0.85})`;
@@ -195,7 +212,6 @@ export default function MouseTrackerBackground() {
         ctx.fill();
         ctx.stroke();
 
-        // Điểm phản chiếu ánh sáng lấp lánh trên bọt nước
         ctx.beginPath();
         ctx.arc(
           b.x - b.radius * 0.35,
@@ -217,7 +233,7 @@ export default function MouseTrackerBackground() {
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mousemove', handlePointerMove);
       document.removeEventListener('pointerleave', handlePointerLeave);
       document.removeEventListener('mouseleave', handlePointerLeave);
       cancelAnimationFrame(rafId);
@@ -226,13 +242,14 @@ export default function MouseTrackerBackground() {
 
   return (
     <div
+      ref={containerRef}
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-30 overflow-hidden select-none"
+      className="pointer-events-none absolute inset-0 z-20 overflow-hidden select-none"
     >
-      {/* VÙNG ÁNH SÁNG LOANG NƯỚC HỮU CƠ (Organic fluid water morphing - Không viền, không hình tròn tĩnh) */}
+      {/* VÙNG ÁNH SÁNG LOANG NƯỚC HỮU CƠ (Organic fluid water morphing) */}
       <div
         ref={fluidGlowRef}
-        className="absolute top-0 left-0 w-[500px] h-[500px] will-change-transform mix-blend-screen opacity-75 transition-opacity duration-300"
+        className="absolute top-0 left-0 w-[500px] h-[500px] will-change-transform mix-blend-screen opacity-0 transition-opacity duration-300"
       >
         {/* Lớp loang nước chính (Morphing wave layer 1) */}
         <div
